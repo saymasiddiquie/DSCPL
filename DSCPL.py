@@ -1,3 +1,6 @@
+# Set environment variable to indicate cloud
+os.environ["STREAMLIT_CLOUD"] = "true"
+
 import os
 import streamlit as st
 from dotenv import load_dotenv, find_dotenv
