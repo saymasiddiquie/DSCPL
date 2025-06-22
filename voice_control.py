@@ -1,6 +1,12 @@
 import pyttsx3
 import time
 import os
+import sys
+
+# Add debug logging
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class VoiceControl:
     def __init__(self):
@@ -11,15 +17,19 @@ class VoiceControl:
             # On Streamlit Cloud, voice control is not available
             self.engine = None
             self.is_muted = True
-            print("Voice control not available on Streamlit Cloud")
+            logger.info("Voice control not available on Streamlit Cloud")
         else:
             try:
+                logger.info("Attempting to initialize pyttsx3 engine...")
                 self.engine = pyttsx3.init()
+                logger.info("Engine initialized successfully")
                 self.is_muted = False
                 self._update_properties()
-                print("Voice control initialized successfully")
+                logger.info("Voice control initialized successfully")
             except Exception as e:
-                print(f"Error initializing voice control: {str(e)}")
+                logger.error(f"Error initializing voice control: {str(e)}")
+                logger.error(f"System info: {sys.platform}")
+                logger.error(f"Python version: {sys.version}")
                 self.engine = None
                 self.is_muted = True
 
