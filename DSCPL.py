@@ -19,13 +19,10 @@ DB_FAISS_PATH = "vectorstore/bible_vectorstore"
 
 st.set_page_config(page_title="DSCPL", page_icon="✨")
 
-# ✅ Rebuild vectorstore from JSON if missing
+# ✅ Safe FAISS loader that rebuilds from JSON if needed
 @st.cache_resource
 def get_vectorstore():
     from langchain.text_splitter import CharacterTextSplitter
-    from langchain_community.embeddings import HuggingFaceEmbeddings
-    from langchain_community.vectorstores import FAISS
-
     try:
         embedding_model = HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2')
 
@@ -34,9 +31,14 @@ def get_vectorstore():
             with open("processed_bible_data.json", "r", encoding="utf-8") as f:
                 bible_data = json.load(f)
 
-            texts = [entry["text"] for entry in bible_data if "text" in entry]
+            texts = [entry.get("text", "").strip() for entry in bible_data if entry.get("text", "").strip()]
+            if not texts:
+                raise ValueError("No valid texts found in processed_bible_data.json")
+
             text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=50)
             documents = text_splitter.create_documents(texts)
+            if not documents:
+                raise ValueError("No documents created from Bible data")
 
             db = FAISS.from_documents(documents, embedding_model)
             db.save_local(DB_FAISS_PATH)
@@ -89,7 +91,7 @@ def get_motivational_response(prompt, context):
                     return f"🌟 Here are some verses that might inspire you:\n{related_verses}"
         return get_motivational_message(prompt.lower())
     except Exception as e:
-        return f"⚠️ I'm having a bit of trouble right now. Error: {str(e)}\n\nPlease try asking your question in a different way!"
+        return f"⚠️ I'm having a bit of trouble right now. Error: {str(e)}"
 
 def create_voice_control_sidebar():
     with st.sidebar:
@@ -109,15 +111,12 @@ def create_voice_control_sidebar():
                     st.error("Voice control not available")
         if st.session_state.voice_control:
             st.write(f"Current state: {'🔊 ON' if not st.session_state.voice_control.is_muted else '🔇 OFF'}")
-        if st.session_state.voice_control:
-            rate = st.slider("Speech Rate (words per minute)", 100, 250, 150, 10, key="speech_rate")
-            if st.session_state.voice_control.engine:
-                st.session_state.voice_control.set_rate(rate)
-                st.success(f"Rate set to: {rate}")
+            rate = st.slider("Speech Rate", 100, 250, 150, 10, key="speech_rate")
             volume = st.slider("Volume", 0.0, 1.0, 1.0, 0.1, key="volume")
             if st.session_state.voice_control.engine:
+                st.session_state.voice_control.set_rate(rate)
                 st.session_state.voice_control.set_volume(volume)
-                st.success(f"Volume set to: {volume}")
+                st.success("Voice settings updated")
         if st.session_state.voice_control and st.session_state.voice_control.engine:
             try:
                 voices = st.session_state.voice_control.engine.getProperty('voices')
@@ -127,7 +126,7 @@ def create_voice_control_sidebar():
                     st.session_state.voice_control.engine.setProperty('voice', voice_options[selected_voice])
                     st.success(f"Voice set to: {selected_voice}")
             except Exception as e:
-                st.error(f"Error with voice selection: {str(e)}")
+                st.error(f"Error selecting voice: {str(e)}")
 
 def main():
     try:
@@ -138,29 +137,25 @@ def main():
             st.info("Initializing voice control...")
             st.session_state.voice_control = VoiceControl()
             if st.session_state.voice_control.initialize():
-                st.success("Voice control initialized successfully")
-                st.info(f"Voice control status: {str(st.session_state.voice_control)}")
+                st.success("Voice control initialized")
                 create_voice_control_sidebar()
             else:
                 if st.session_state.voice_control.is_cloud:
-                    st.info("Voice control is not available on Streamlit Cloud")
+                    st.info("Voice control not available on Streamlit Cloud")
                 else:
-                    error_msg = st.session_state.voice_control.error_message
-                    st.error(f"Voice control error: {error_msg}" if error_msg else "Voice control not available")
+                    err = st.session_state.voice_control.error_message
+                    st.error(f"Voice control error: {err}" if err else "Voice control unavailable")
         except Exception as e:
-            st.error(f"Voice control initialization error: {str(e)}")
+            st.error(f"Voice control init error: {str(e)}")
             st.session_state.voice_control = None
-            st.info("You can still use the app without voice control.")
-            return
 
     except Exception as e:
-        st.error(f"⚠️ Error in main function: {str(e)}")
+        st.error(f"⚠️ App error: {str(e)}")
         st.session_state.voice_control = None
         return
 
     st.title("✨ DSCPL — Your Personal Encourager")
-    st.write("Welcome to DSCPL - Your Personal Encourager!")
-    st.write("Ask me any question about the Bible or life, and I'll help you find encouragement.")
+    st.write("Welcome! Ask a Bible-based or motivational question.")
 
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
@@ -176,18 +171,18 @@ def main():
                     context = "\n".join([msg['content'] for msg in st.session_state.messages if msg['role'] != 'user'])
                     result = get_motivational_response(prompt, context)
                     st.markdown(result)
-                    st.session_state.messages.append({'role': 'assistant', 'content': result})
+                    st.session_state.messages.append({"role": "assistant", "content": result})
                     if st.session_state.voice_control and st.session_state.voice_control.engine:
                         try:
                             if st.session_state.voice_control.speak(result):
-                                st.success("Response spoken successfully")
+                                st.success("🗣️ Spoken")
                             else:
-                                st.warning("Failed to speak response")
-                        except Exception as speak_error:
-                            st.error(f"Error speaking response: {str(speak_error)}")
-                except Exception as response_error:
-                    st.error(f"Error generating response: {str(response_error)}")
-                    st.session_state.messages.append({'role': 'assistant', 'content': f"Error generating response: {str(response_error)}"})
+                                st.warning("Couldn't speak response")
+                        except Exception as e:
+                            st.error(f"Speak error: {str(e)}")
+                except Exception as e:
+                    st.error(f"Error: {str(e)}")
+                    st.session_state.messages.append({"role": "assistant", "content": f"⚠️ Error: {str(e)}"})
 
 if __name__ == "__main__":
     main()
