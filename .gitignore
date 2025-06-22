@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build outputs
+build/
+dist/
+*.egg-info/
+
+# Model files
+*.bin
+*.ggmlv3.q4_K_M.bin
+
+# Vector store
+vectorstore/
+
+# Data files
+*.csv
+*.json
+
+# Environment files
+.env
+.env.local
+.env.*.local
