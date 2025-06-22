@@ -164,7 +164,11 @@ def main():
                 st.session_state.voice_control.is_muted = False
                 st.success("Voice control initialized successfully")
             else:
-                st.info("Voice control is not available on Streamlit Cloud")
+                if st.session_state.voice_control.is_cloud:
+                    st.info("Voice control is not available on Streamlit Cloud")
+                else:
+                    st.warning("Voice control is not available. Please ensure pyttsx3 is properly installed.")
+                    st.info("You can still use the app without voice control.")
 
         st.title("✨ DSCPL — Your Personal Encourager")
         
