@@ -1,7 +1,10 @@
 import pyttsx3
+import gtts
 import time
 import os
 import sys
+import tempfile
+from pathlib import Path
 
 # Add debug logging
 import logging
@@ -27,11 +30,41 @@ class VoiceControl:
                 self._update_properties()
                 logger.info("Voice control initialized successfully")
             except Exception as e:
-                logger.error(f"Error initializing voice control: {str(e)}")
-                logger.error(f"System info: {sys.platform}")
-                logger.error(f"Python version: {sys.version}")
-                self.engine = None
-                self.is_muted = True
+                logger.error(f"Error initializing pyttsx3: {str(e)}")
+                logger.info("Falling back to gTTS...")
+                try:
+                    self.engine = None
+                    self.is_muted = False
+                    self._update_properties()
+                    logger.info("Voice control initialized with gTTS")
+                except Exception as e:
+                    logger.error(f"Error initializing gTTS: {str(e)}")
+                    self.engine = None
+                    self.is_muted = True
+
+    def speak(self, text):
+        """Speak text if not muted"""
+        if self.engine and not self.is_muted:
+            try:
+                if self.engine:  # If pyttsx3 is available
+                    self.engine.say(text)
+                    self.engine.runAndWait()
+                else:
+                    # Use gTTS as fallback
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as temp_file:
+                        temp_path = Path(temp_file.name)
+                        tts = gtts.gTTS(text=text, lang='en')
+                        tts.save(str(temp_path))
+                        # Play the file (implementation depends on platform)
+                        if sys.platform == 'win32':
+                            import winsound
+                            winsound.PlaySound(str(temp_path), winsound.SND_FILENAME)
+                        temp_path.unlink()  # Delete the temporary file
+                return True
+            except Exception as e:
+                logger.error(f"Error speaking: {str(e)}")
+                return False
+        return False
 
     def _update_properties(self):
         """Update engine properties"""
